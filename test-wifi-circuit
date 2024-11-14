@@ -2,21 +2,22 @@
 #include <WebServer.h>
 #include <Stepper.h>  // Biblioteca para controlar el motor paso a paso
 
-const char* ssid = "HUAWEI-2.4G-F5eU";     // Nombre de tu red WiFi
-const char* password = "AhtDNtjV";          // Contraseña de tu red WiFi
+const char* ssid = "";     // Nombre de tu red WiFi
+const char* password = "";          // Contraseña de tu red WiFi
 
 WebServer server(80);                       // Crea un servidor web en el puerto 80
 
 // Pines de los LEDs
-const int ledPin1 = 15;  // GPIO 15
-const int ledPin2 = 2;   // GPIO 2
-const int ledPin3 = 4;   // GPIO 4
+const int ledPin1 = 13;  // GPIO 13
+const int ledPin2 = 12;   // GPIO 12
+const int ledPin3 = 14;   // GPIO 14
 
 // Pines del motor paso a paso
-const int motorPin1 = 5;   // Conectado a IN1 en el ULN2003
-const int motorPin2 = 18;  // Conectado a IN2 en el ULN2003
-const int motorPin3 = 19;  // Conectado a IN3 en el ULN2003
-const int motorPin4 = 21;  // Conectado a IN4 en el ULN2003
+const int motorPin1 = 27;   // Conectado a IN1 en el ULN2003
+const int motorPin2 = 26;  // Conectado a IN2 en el ULN2003
+const int motorPin3 = 25;  // Conectado a IN3 en el ULN2003
+const int motorPin4 = 33;  // Conectado a IN4 en el ULN2003
+
 
 // Configuración del motor paso a paso
 const int pasosPorRevolucion = 2048; // Cambia según tu motor
