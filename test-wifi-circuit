@@ -1,0 +1,190 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Stepper.h>  // Biblioteca para controlar el motor paso a paso
+
+const char* ssid = "HUAWEI-2.4G-F5eU";     // Nombre de tu red WiFi
+const char* password = "AhtDNtjV";          // Contraseña de tu red WiFi
+
+WebServer server(80);                       // Crea un servidor web en el puerto 80
+
+// Pines de los LEDs
+const int ledPin1 = 15;  // GPIO 15
+const int ledPin2 = 2;   // GPIO 2
+const int ledPin3 = 4;   // GPIO 4
+
+// Pines del motor paso a paso
+const int motorPin1 = 5;   // Conectado a IN1 en el ULN2003
+const int motorPin2 = 18;  // Conectado a IN2 en el ULN2003
+const int motorPin3 = 19;  // Conectado a IN3 en el ULN2003
+const int motorPin4 = 21;  // Conectado a IN4 en el ULN2003
+
+// Configuración del motor paso a paso
+const int pasosPorRevolucion = 2048; // Cambia según tu motor
+Stepper motor(pasosPorRevolucion, motorPin1, motorPin3, motorPin2, motorPin4);
+
+bool secuenciaActiva = false;       // Variable para controlar la secuencia de LEDs
+bool motorActivo = false;           // Variable para controlar el giro del motor
+int velocidadMotor = 10;            // Velocidad inicial del motor en RPM
+
+unsigned long tiempoAnteriorLed = 0;
+unsigned long intervaloLed = 500;   // Intervalo para cambiar el estado de los LEDs
+int estadoLed = 0;
+
+void setup() {
+  Serial.begin(115200);
+
+  // Configuración de pines de los LEDs
+  pinMode(ledPin1, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
+  pinMode(ledPin3, OUTPUT);
+  
+  // Configuración inicial del motor paso a paso
+  motor.setSpeed(velocidadMotor);
+
+  // Iniciar WiFi
+  Serial.print("Conectando a WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConexión WiFi exitosa.");
+  Serial.print("Dirección IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Configurar rutas del servidor web para controlar LEDs y motor
+  server.on("/", []() {
+    server.send(200, "text/html", "<h1>Control de LEDs y Motor Paso a Paso</h1>"
+      "<p><a href=\"/encender1\">Encender LED 1</a> | <a href=\"/apagar1\">Apagar LED 1</a></p>"
+      "<p><a href=\"/encender2\">Encender LED 2</a> | <a href=\"/apagar2\">Apagar LED 2</a></p>"
+      "<p><a href=\"/encender3\">Encender LED 3</a> | <a href=\"/apagar3\">Apagar LED 3</a></p>"
+      "<p><a href=\"/secuencia\">Iniciar Secuencia de LEDs</a> | <a href=\"/detener\">Detener Secuencia</a></p>"
+      "<p><a href=\"/motor\">Mover Motor Paso a Paso</a> | <a href=\"/parar_motor\">Parar Motor</a></p>"
+      "<p><a href=\"/velocidad/5\">Velocidad Motor: 5 RPM</a> | <a href=\"/velocidad/10\">10 RPM</a> | <a href=\"/velocidad/15\">15 RPM</a></p>");
+  });
+
+  // Rutas para encender y apagar cada LED individualmente
+  server.on("/encender1", []() {
+    digitalWrite(ledPin1, HIGH);
+    server.send(200, "text/html", "<h1>LED 1 Encendido</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/apagar1", []() {
+    digitalWrite(ledPin1, LOW);
+    server.send(200, "text/html", "<h1>LED 1 Apagado</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/encender2", []() {
+    digitalWrite(ledPin2, HIGH);
+    server.send(200, "text/html", "<h1>LED 2 Encendido</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/apagar2", []() {
+    digitalWrite(ledPin2, LOW);
+    server.send(200, "text/html", "<h1>LED 2 Apagado</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/encender3", []() {
+    digitalWrite(ledPin3, HIGH);
+    server.send(200, "text/html", "<h1>LED 3 Encendido</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/apagar3", []() {
+    digitalWrite(ledPin3, LOW);
+    server.send(200, "text/html", "<h1>LED 3 Apagado</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  // Ruta para encender los tres LEDs en secuencia
+  server.on("/secuencia", []() {
+    secuenciaActiva = true;  // Activa la secuencia de LEDs
+    server.send(200, "text/html", "<h1>Secuencia de LEDs Iniciada</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  // Ruta para detener la secuencia de LEDs
+  server.on("/detener", []() {
+    secuenciaActiva = false;  // Desactiva la secuencia
+    digitalWrite(ledPin1, LOW);
+    digitalWrite(ledPin2, LOW);
+    digitalWrite(ledPin3, LOW);
+    server.send(200, "text/html", "<h1>Secuencia de LEDs Detenida</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  // Ruta para iniciar el movimiento continuo del motor
+  server.on("/motor", []() {
+    motorActivo = true;  // Activa el movimiento continuo del motor
+    server.send(200, "text/html", "<h1>Motor Paso a Paso Moviéndose</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  // Ruta para detener el movimiento del motor
+  server.on("/parar_motor", []() {
+    motorActivo = false;  // Desactiva el movimiento del motor
+    server.send(200, "text/html", "<h1>Motor Paso a Paso Detenido</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  // Rutas para ajustar la velocidad del motor (máximo 15 RPM)
+  server.on("/velocidad/5", []() {
+    velocidadMotor = 5;
+    motor.setSpeed(velocidadMotor);
+    server.send(200, "text/html", "<h1>Velocidad del Motor ajustada a 5 RPM</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/velocidad/10", []() {
+    velocidadMotor = 10;
+    motor.setSpeed(velocidadMotor);
+    server.send(200, "text/html", "<h1>Velocidad del Motor ajustada a 10 RPM</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  server.on("/velocidad/15", []() {
+    velocidadMotor = 15;
+    motor.setSpeed(velocidadMotor);
+    server.send(200, "text/html", "<h1>Velocidad del Motor ajustada a 15 RPM</h1><p><a href=\"/\">Regresar</a></p>");
+  });
+
+  // Iniciar el servidor
+  server.begin();
+  Serial.println("Servidor web iniciado.");
+}
+
+void loop() {
+  server.handleClient();  // Atiende las solicitudes de los clientes
+
+  // Controla la secuencia de LEDs usando millis() para evitar bloqueos
+  if (secuenciaActiva) {
+    unsigned long tiempoActual = millis();
+    if (tiempoActual - tiempoAnteriorLed >= intervaloLed) {
+      tiempoAnteriorLed = tiempoActual;
+      switch (estadoLed) {
+        case 0:
+          digitalWrite(ledPin1, HIGH);
+          estadoLed++;
+          break;
+        case 1:
+          digitalWrite(ledPin2, HIGH);
+          estadoLed++;
+          break;
+        case 2:
+          digitalWrite(ledPin3, HIGH);
+          estadoLed++;
+          break;
+        case 3:
+          digitalWrite(ledPin1, LOW);
+          estadoLed++;
+          break;
+        case 4:
+          digitalWrite(ledPin2, LOW);
+          estadoLed++;
+          break;
+        case 5:
+          digitalWrite(ledPin3, LOW);
+          estadoLed = 0;
+          break;
+      }
+    }
+  }
+
+  // Controla el movimiento continuo del motor si está activo
+  if (motorActivo) {
+    motor.step(10);  // Mueve el motor en pasos de 10 para reducir bloqueos
+  }
+}
+
